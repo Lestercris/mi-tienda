@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis Sistemas</title>
+  <style>
+    body{font-family:system-ui;margin:0;background:#f7f7f8}
+    header{padding:24px;background:#111;color:#fff}
+    main{max-width:1100px;margin:auto;padding:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+    .card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 4px 20px #0001}
+    .card img{width:100%;height:160px;object-fit:cover;border-radius:10px;background:#ddd}
+    button{background:#111;color:#fff;border:0;padding:12px 16px;border-radius:10px;cursor:pointer}
+    input{padding:10px;border:1px solid #ccc;border-radius:8px;width:100%;margin:4px 0}
+  </style>
+</head>
+<body>
+<header><h1>Mis Sistemas</h1><p>Catálogo profesional</p></header>
+<main id="grid"></main>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbxCPvFAy_0lnpNDTpSuhAgr5ph1OKjZ_2YhBof-9quudWtEAIfl2aGEWN5oKJoO39zfKQ/exec';
+
+async function api(action, data = {}) {
+  const res = await fetch(API, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...data })
+  });
+  return res.json();
+}
+
+async function load() {
+  const data = await api('products');
+  const grid = document.getElementById('grid');
+  if (!data.ok) { grid.innerHTML = '<p>Error: ' + data.error + '</p>'; return; }
+  grid.innerHTML = data.products.map(p => `
+    <div class="card">
+      <img src="${p.imagenUrl || ''}" alt="${p.nombre}">
+      <h3>${p.nombre}</h3>
+      <p>${p.descripcion || ''}</p>
+      <strong>${Number(p.precio).toFixed(2)} €</strong>
+      ${p.demoUrl ? `<p><a href="${p.demoUrl}" target="_blank">Ver demo</a></p>` : ''}
+      <button onclick="buy('${p.id}')">Comprar</button>
+    </div>
+  `).join('');
+}
+
+async function buy(id) {
+  const email = prompt('Tu email para recibir la descarga:');
+  const whatsapp = prompt('Tu WhatsApp con prefijo internacional (opcional):');
+  if (!email) return;
+  const data = await api('createOrder', {
+    items: [{ id, qty: 1 }],
+    email,
+    whatsapp,
+    provider: 'stripe',
+    successUrl: location.origin + '/success.html',
+    cancelUrl: location.origin + '/cancel.html'
+  });
+  if (!data.ok) { alert(data.error); return; }
+  if (data.paymentUrl) location.href = data.paymentUrl;
+  else alert('Pedido creado: ' + data.orderId);
+}
+
+load();
+</script>
+</body>
+</html>
