@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin - Panel de Control</title>
+  <style>
+    body{font-family:system-ui;max-width:900px;margin:auto;padding:24px;background:#f4f4f5}
+    input,textarea,select{width:100%;padding:10px;margin:6px 0;border:1px solid #ccc;border-radius:8px;box-sizing:border-box}
+    button{padding:12px 18px;border:0;border-radius:8px;background:#111;color:#fff;cursor:pointer}
+    .box{border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0;background:#fff}
+  </style>
+</head>
+<body>
+<h1>Panel de administración</h1>
+
+<div class="box" id="loginBox">
+  <h2>Acceso Admin</h2>
+  <input id="email" placeholder="Email de administrador">
+  <input id="password" type="password" placeholder="Contraseña">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div id="panel" style="display:none">
+  <div class="box">
+    <h2>Añadir / Editar Producto</h2>
+    <input id="pId" placeholder="ID (vacío para nuevo, o pega uno existente)">
+    <input id="pNombre" placeholder="Nombre del sistema">
+    <textarea id="pDesc" placeholder="Descripción"></textarea>
+    <input id="pPrecio" type="number" placeholder="Precio en €">
+    <input id="pDemo" placeholder="URL del Demo (opcional)">
+    
+    <p>Subir archivo (imagen o instalador):</p>
+    <input type="file" id="fileMedia">
+    <select id="kind">
+      <option value="media">Imagen / Vídeo (Público)</option>
+      <option value="installer">Instalador (Privado .zip)</option>
+    </select>
+    <button onclick="upload()">Subir Archivo</button>
+    <p id="uploadResult" style="color:green; font-size:14px;"></p>
+
+    <input id="pImagen" placeholder="URL imagen (se rellena al subir)">
+    <input id="pInstalador" placeholder="File ID instalador (se rellena al subir)">
+    <select id="pTipo">
+      <option value="sistema">Sistema</option>
+      <option value="bono">Bono</option>
+      <option value="paquete">Paquete</option>
+    </select>
+    <input id="pActivo" placeholder="activo true/false" value="true">
+    <button onclick="saveProduct()" style="background:#0055ff">Guardar Producto</button>
+  </div>
+
+  <div class="box">
+    <h2>Productos Actuales</h2>
+    <button onclick="loadProducts()">Recargar Lista</button>
+    <pre id="products" style="background:#eee;padding:10px;border-radius:8px;overflow:auto;max-height:300px"></pre>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbxCPvFAy_0lnpNDTpSuhAgr5ph1OKjZ_2YhBof-9quudWtEAIfl2aGEWN5oKJoO39zfKQ/exec';
+let token = localStorage.getItem('adminToken') || '';
+
+async function api(action, data = {}) {
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({ action, token, ...data })
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: 'Error de conexión' };
+  }
+}
+
+async function login() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const data = await api('login', { email, password });
+  
+  if (!data.ok) return alert(data.error);
+  if (data.user.rol !== 'admin') return alert('No tienes permisos de administrador');
+  
+  token = data.token;
+  localStorage.setItem('adminToken', token);
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('panel').style.display = 'block';
+  loadProducts();
+}
+
+async function saveProduct() {
+  const product = {
+    id: document.getElementById('pId').value.trim(),
+    nombre: document.getElementById('pNombre').value,
+    descripcion: document.getElementById('pDesc').value,
+    precio: Number(document.getElementById('pPrecio').value),
+    demoUrl: document.getElementById('pDemo').value,
+    imagenUrl: document.getElementById('pImagen').value,
+    instaladorFileId: document.getElementById('pInstalador').value,
+    tipo: document.getElementById('pTipo').value,
+    activo: document.getElementById('pActivo').value === 'true'
+  };
+  
+  if (!product.nombre || !product.precio) return alert('Faltan nombre o precio');
+  
+  const data = await api('adminSaveProduct', { product });
+  alert(data.ok ? 'Producto guardado con éxito' : data.error);
+  if (data.ok) loadProducts();
+}
+
+async function upload() {
+  const file = document.getElementById('fileMedia').files[0];
+  if (!file) return alert('Selecciona un archivo primero');
+  
+  document.getElementById('uploadResult').innerText = "Subiendo, por favor espera...";
+  
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = String(reader.result).split(',')[1];
+    const kind = document.getElementById('kind').value;
+    const data = await api('adminUploadMedia', {
+      filename: file.name,
+      mimeType: file.type,
+      base64,
+      kind
+    });
+    
+    if (!data.ok) {
+        document.getElementById('uploadResult').innerText = "Error: " + data.error;
+        return;
+    }
+    
+    document.getElementById('uploadResult').innerText = "¡Subido con éxito!";
+    if (kind === 'installer') {
+        document.getElementById('pInstalador').value = data.fileId;
+    } else {
+        document.getElementById('pImagen').value = data.url;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function loadProducts() {
+  const data = await api('products', { includeInactive: true });
+  document.getElementById('products').textContent = JSON.stringify(data.products, null, 2);
+}
+
+// Si ya hay token guardado, intenta cargar el panel directo
+if (token) {
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('panel').style.display = 'block';
+  loadProducts();
+}
+</script>
+</body>
+</html>
