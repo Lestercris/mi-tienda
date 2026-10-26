@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Descarga de archivos</title></head>
+<body style="font-family:sans-serif; text-align:center; padding:50px;">
+<h1>Preparando tus archivos...</h1>
+<p>Por favor, espera mientras se validan tus datos y se genera la descarga.</p>
+<div id="links" style="margin-top:20px; font-size:18px;"></div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbxCPvFAy_0lnpNDTpSuhAgr5ph1OKjZ_2YhBof-9quudWtEAIfl2aGEWN5oKJoO39zfKQ/exec';
+const token = new URLSearchParams(location.search).get('token');
+
+if (!token) {
+    document.getElementById('links').innerHTML = '<p style="color:red">Falta el token de descarga.</p>';
+} else {
+    fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'download', token })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) return document.getElementById('links').innerHTML = '<p style="color:red">Error: ' + data.error + '</p>';
+      
+      const box = document.getElementById('links');
+      box.innerHTML = '<h2>¡Pago verificado! Descarga aquí:</h2>';
+      
+      data.files.forEach((f) => {
+        const a = document.createElement('a');
+        a.href = 'data:application/octet-stream;base64,' + f.base64;
+        a.download = f.name;
+        a.textContent = '⬇ Descargar ' + f.name;
+        a.style.display = 'block';
+        a.style.margin = '10px';
+        a.style.color = 'blue';
+        box.appendChild(a);
+      });
+    })
+    .catch(e => {
+        document.getElementById('links').innerHTML = '<p style="color:red">Error de conexión con el servidor.</p>';
+    });
+}
+</script>
+</body>
+</html>
